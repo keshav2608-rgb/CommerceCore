@@ -1,13 +1,6 @@
-# CommerceCore — Week 1
+# CommerceCore
 
-A realistically-scoped, solo-developer, polyglot microservices e-commerce platform.
-This README covers **Week 1 only** (Foundation): contracts, scaffolding, both
-services booting, auth, gateway routing, and product catalog + search.
-
-See the original roadmap for full project scope, Week 2-4 plans, and the reasoning
-behind cutting Kafka/saga/ECS/Prometheus from Month 1.
-
-## What's implemented in Week 1
+## What's implemented
 
 | Day | Deliverable | Status |
 |-----|-------------|--------|
@@ -131,7 +124,7 @@ git commit -m "feat(catalog-cart-service): mongo+redis health check (D2)"
 git checkout main && git merge feat/catalog-cart-health
 ```
 
-## What's next (Week 2)
+## What's next
 
 Cart endpoints (Redis, TTL), order creation with Postgres transactions + idempotency
 keys, mock payment logic, and order status tracking. Not started yet — see
