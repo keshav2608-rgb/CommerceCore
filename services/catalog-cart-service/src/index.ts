@@ -10,6 +10,7 @@ import { connectMongo } from "./config/mongo";
 import { connectRedis } from "./config/redis";
 import healthRoutes from "./routes/health.routes";
 import productRoutes from "./routes/product.routes";
+import cartRoutes from "./routes/cart.routes";
 import { errorHandler } from "./middleware/errorHandler";
 
 const app = express();
@@ -21,6 +22,7 @@ app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
 
 app.use(healthRoutes);
 app.use(productRoutes);
+app.use(cartRoutes);
 
 app.use(errorHandler);
 

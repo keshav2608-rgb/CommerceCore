@@ -149,12 +149,14 @@ paths:
                 $ref: "#/components/schemas/ProductListResponse"
 
   # ---------------------------------------------------------------------
-  # Cart (Week 2 — contract reserved now, implemented D8-9)
+  # Cart (Week 2, D8-9) — requires a valid access token
   # ---------------------------------------------------------------------
   /cart:
     get:
       tags: [cart]
-      summary: Get current user's cart (Week 2)
+      summary: Get current user's cart, hydrated with live product name/price/stock
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: Current cart contents
@@ -162,11 +164,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cart"
+        "401":
+          description: Missing or invalid access token
+    delete:
+      tags: [cart]
+      summary: Clear the current user's cart
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Cart cleared
 
   /cart/items:
     post:
       tags: [cart]
-      summary: Add an item to cart (Week 2)
+      summary: Add an item to cart (stock-checked against the catalog)
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -180,20 +194,52 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Cart"
+        "409":
+          description: Out of stock or insufficient stock
+
+  /cart/items/{productId}:
+    delete:
+      tags: [cart]
+      summary: Remove an item from cart
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
 
   # ---------------------------------------------------------------------
-  # Orders / Payments (Week 2 — contract reserved now, implemented D10-13)
+  # Orders / Payments (Week 2, D10-13)
   # ---------------------------------------------------------------------
   /orders:
     post:
       tags: [orders]
-      summary: Create an order from the current cart (Week 2)
+      summary: Create an order from the current cart (mock payment, Postgres transaction)
+      security:
+        - bearerAuth: []
       parameters:
         - name: Idempotency-Key
           in: header
           required: true
           schema:
             type: string
+          description: Client-generated key; retrying with the same key returns the original order instead of creating a duplicate
+        - name: simulateFailure
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Test-only flag to exercise the mock-payment failure path
       requestBody:
         required: true
         content:
@@ -202,16 +248,22 @@ paths:
               $ref: "#/components/schemas/CreateOrderRequest"
       responses:
         "201":
-          description: Order created
+          description: Order created (status PAID or FAILED depending on the mock payment outcome)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Order"
+        "400":
+          description: Empty cart or missing Idempotency-Key
+        "401":
+          description: Missing or invalid access token
 
   /orders/{id}/status:
     get:
       tags: [orders]
-      summary: Get order status (Week 2)
+      summary: Get order status
+      security:
+        - bearerAuth: []
       parameters:
         - name: id
           in: path
@@ -227,11 +279,13 @@ paths:
                 $ref: "#/components/schemas/OrderStatus"
         "403":
           description: Order does not belong to the requesting user
+        "404":
+          description: Order does not exist
 
   /payments/webhook:
     post:
       tags: [payments]
-      summary: Mock payment provider webhook (Week 2)
+      summary: Mock payment provider webhook (Month-2 — real gateway integration is a stretch goal, not required for Month 1)
       responses:
         "200":
           description: Webhook processed

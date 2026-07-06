@@ -38,3 +38,45 @@ export async function listProducts(
     next(err);
   }
 }
+
+interface DecrementItem {
+  productId: string;
+  quantity: number;
+}
+
+// Internal-only endpoint (guarded by requireInternalSecret middleware):
+// order-payment-service calls this after a Postgres order transaction commits.
+// NOTE: this happens as a separate call, not inside the same ACID transaction
+// as the order write — Mongo and Postgres can't share a transaction. That's an
+// intentional Month-1 simplification (documented in Section 4/27-28 of the
+// roadmap); the Month-2 fix is an event-driven saga (order-service publishes
+// OrderPlaced, catalog-service consumes it and decrements stock, with a
+// compensating action if it fails).
+export async function decrementStock(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { items } = req.body as { items?: DecrementItem[] };
+
+    if (!Array.isArray(items) || items.length === 0) {
+      res.status(400).json({ error: "ValidationError", message: "items[] is required" });
+      return;
+    }
+
+    const results: { productId: string; success: boolean }[] = [];
+
+    for (const item of items) {
+      // The stock >= quantity guard in the filter makes this a conditional
+      // update — it can never push stock negative even under concurrent orders.
+      const updated = await Product.findOneAndUpdate(
+        { _id: item.productId, stock: { $gte: item.quantity } },
+        { $inc: { stock: -item.quantity } },
+        { new: true }
+      );
+      results.push({ productId: item.productId, success: updated !== null });
+    }
+
+    const allSucceeded = results.every((r) => r.success);
+    res.status(allSucceeded ? 200 : 409).json({ results });
+  } catch (err) {
+    next(err);
+  }
+}

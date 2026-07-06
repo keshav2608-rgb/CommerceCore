@@ -1,6 +1,13 @@
-# CommerceCore
+# CommerceCore — Week 1 & Week 2
+
+A realistically-scoped, solo-developer, polyglot microservices e-commerce platform.
+This README covers **Week 1 (Foundation)** and **Week 2 (Core Business Logic)**:
+contracts, both services running, auth, gateway routing, product catalog, cart,
+and the full order + mock payment flow.
 
 ## What's implemented
+
+### Week 1 — Foundation
 
 | Day | Deliverable | Status |
 |-----|-------------|--------|
@@ -8,13 +15,60 @@
 | D2  | Node catalog+cart-service scaffold, Mongo+Redis connections, `/health` | ✅ |
 | D3  | Spring Boot order+payment-service scaffold, Postgres via JPA, `/health` | ✅ |
 | D4  | Auth (signup/login/refresh) — bcrypt + JWT + refresh token table | ✅ |
-| D5  | NGINX gateway routing + JWT-aware structure + rate limiting | ✅ |
+| D5  | NGINX gateway routing + rate limiting | ✅ |
 | D6  | Product schema + seed script (30 products) + `GET /products` search/filter | ✅ |
-| D7  | Buffer day — this README + smoke test script | ✅ |
+| D7  | Buffer day — README + smoke test script | ✅ |
 
-Cart, order/payment business logic, and the React frontend are **Week 2+** and are
-intentionally not implemented yet — see `openapi/openapi.yaml` for their reserved
-contracts.
+### Week 2 — Core Business Logic
+
+| Day | Deliverable | Status |
+|-----|-------------|--------|
+| D8-9  | Cart endpoints (`POST/GET/DELETE /cart/items`, `DELETE /cart`), Redis hash + TTL, stock-checked against Mongo | ✅ |
+| D10-11 | Order creation (`POST /orders`) — Postgres transaction (order+order_items+payment), idempotency-key dedup | ✅ |
+| D12   | Mock payment simulation (`simulateFailure` test flag), order status set accordingly | ✅ |
+| D13   | `GET /orders/:id/status` with ownership check (403 for another user's order) | ✅ |
+| D14   | Buffer + `scripts/smoke-test-week2.sh` end-to-end verification | ✅ |
+
+The React frontend (Week 3) is **not implemented yet** — this is still an API-only
+backend, verified via curl/scripts.
+
+## A note on the cross-service order flow (read this before Week 3)
+
+Order creation needs the user's cart, but the cart lives in Redis (Node service)
+while orders live in Postgres (Spring service) — two different datastores can't
+share one ACID transaction. This is the "biggest implementation challenge" the
+roadmap calls out in Section 1, and it's handled honestly rather than faked:
+
+1. `order-payment-service` receives `POST /orders` with the user's JWT.
+2. It calls `GET /cart` on `catalog-cart-service`, **forwarding the same JWT** —
+   the two services trust the same shared secret, so the cart service
+   authenticates the request as the same user without any special-casing.
+3. Order + order_items + payment are written in a single Postgres
+   `@Transactional` block, including idempotency-key dedup.
+4. *After* that transaction commits, `order-payment-service` calls back to
+   `catalog-cart-service` to decrement stock (a shared-secret-guarded internal
+   endpoint, not a user-facing one) and clear the cart.
+
+Step 4 is **not** part of the Postgres transaction — if it fails after a
+successful payment, today that only logs a warning server-side. That's a
+known, documented Month-1 simplification. The real fix (Section 27-28 /
+Month-2 stretch goals) is an event-driven saga: `order-service` publishes an
+`OrderPlaced` event, `catalog-service` consumes it and decrements stock, with a
+compensating action if that fails — which is exactly the Kafka/saga work this
+project intentionally deferred past Month 1.
+
+## Auth model between services
+
+Both services share one JWT secret (`JWT_SECRET`) and verify the same
+HS256-signed tokens — `order-payment-service` issues them, `catalog-cart-service`
+only verifies them. This is a Month-1-appropriate shared-secret setup; a
+Month-2 upgrade would move to asymmetric keys (RS256) so only the issuer holds
+the private key.
+
+Service-to-service calls that aren't "on behalf of a user" (the stock
+decrement) use a separate shared secret (`INTERNAL_SERVICE_SECRET`) sent as a
+header, rather than a forwarded user token — that endpoint should never be
+reachable by an end user through the gateway.
 
 ## Architecture
 
@@ -34,9 +88,11 @@ Mongo + Redis   PostgreSQL
 CommerceCore/
 ├── docker-compose.yml
 ├── .env.example
-├── openapi/openapi.yaml          # full API contract (Week 1-4)
+├── openapi/openapi.yaml          # full API contract (Week 1-2 implemented, Week 3-4 reserved)
 ├── gateway/nginx.conf            # gateway routing + rate limiting
-├── scripts/smoke-test-week1.sh   # manual end-to-end verification
+├── scripts/
+│   ├── smoke-test-week1.sh       # health, catalog search, auth flow
+│   └── smoke-test-week2.sh       # cart, order creation, payment, ownership check
 └── services/
     ├── catalog-cart-service/     # Node.js + TypeScript, Mongo + Redis
     └── order-payment-service/    # Spring Boot, PostgreSQL, JWT auth
@@ -53,22 +109,28 @@ CommerceCore/
 1. Copy the environment template and fill in real secrets before running anything:
    ```bash
    cp .env.example .env
-   # Edit .env — set a long random JWT_SECRET and real DB passwords
+   # Edit .env — set a long random JWT_SECRET, a long random INTERNAL_SERVICE_SECRET,
+   # and real DB passwords. JWT_SECRET must be identical across both services —
+   # docker-compose.yml already wires the same value to both, so one edit is enough.
    ```
 2. Build and start everything:
    ```bash
    docker compose up --build -d
    ```
-3. Wait ~20-30 seconds for Postgres/Mongo/Redis health checks to pass, then seed sample products:
+3. Wait ~20-30 seconds for Postgres/Mongo/Redis health checks to pass, then seed sample products.
+   Note: the seed script reads its own `.env` from inside `services/catalog-cart-service`
+   (not the root one), so copy it there too:
    ```bash
    cd services/catalog-cart-service
+   cp .env.example .env   # edit MONGO_URI to use localhost + the same credentials as root .env
    npm install
    npm run seed
    cd ../..
    ```
-4. Run the smoke test:
+4. Run both smoke tests:
    ```bash
    ./scripts/smoke-test-week1.sh
+   ./scripts/smoke-test-week2.sh
    ```
 
 ## Verifying manually
@@ -98,23 +160,40 @@ curl -X POST http://localhost:8081/auth/login \
 ```bash
 cd services/catalog-cart-service
 npm install
-cp .env.example .env   # point at local/dockerized Mongo+Redis
+cp .env.example .env   # point at local/dockerized Mongo+Redis; JWT_SECRET and
+                        # INTERNAL_SERVICE_SECRET must match order-payment-service's
 npm run dev
-npm test
+npm test                # 5 tests: health + JWT middleware
 ```
 
 **order-payment-service**
 ```bash
 cd services/order-payment-service
+# Set JWT_SECRET, INTERNAL_SERVICE_SECRET (must match the Node service),
+# and CATALOG_SERVICE_URL (e.g. http://localhost:4000 if catalog-cart-service
+# is also running standalone) as environment variables, or export via your IDE run config.
 mvn spring-boot:run
-mvn test
+mvn test                # HealthControllerTest, AuthControllerTest, OrderControllerTest
+                         # — all run against an isolated H2 profile, no Postgres needed
 ```
 
-## 
+## Git workflow
 
+`main` is always deployable. Create a feature branch per module and use
+conventional commits, e.g.:
 
-## What's next
+```bash
+git init
+git add .
+git commit -m "chore: scaffold monorepo, docker-compose, openapi spec (D1)"
+git checkout -b feat/catalog-cart-health
+git commit -m "feat(catalog-cart-service): mongo+redis health check (D2)"
+git checkout main && git merge feat/catalog-cart-health
+```
 
-Cart endpoints (Redis, TTL), order creation with Postgres transactions + idempotency
-keys, mock payment logic, and order status tracking. Not started yet — see
-`openapi/openapi.yaml` for the reserved `/cart`, `/orders`, `/payments` contracts.
+## What's next (Week 3)
+
+React frontend: Vite scaffold, Redux store (auth/cart/catalog slices), product
+listing + search UI, cart UI, checkout flow, order status page. Backend is
+functionally complete for this — Week 3 is purely a client that calls the
+APIs already built and verified in Weeks 1-2.

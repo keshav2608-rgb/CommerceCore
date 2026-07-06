@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 
 // Wraps jjwt so the rest of the app never touches raw JWT library calls directly.
 // Access tokens are short-lived and stateless; refresh tokens are also JWTs but
@@ -45,6 +46,7 @@ public class JwtUtil {
                 .claim("userId", userId)
                 .claim("role", role)
                 .claim("type", "access")
+                .claim("jti", UUID.randomUUID().toString())
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + accessTokenExpiryMs))
                 .signWith(signingKey)
@@ -57,6 +59,7 @@ public class JwtUtil {
                 .subject(subjectEmail)
                 .claim("userId", userId)
                 .claim("type", "refresh")
+                .claim("jti", UUID.randomUUID().toString())
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + refreshTokenExpiryMs))
                 .signWith(signingKey)

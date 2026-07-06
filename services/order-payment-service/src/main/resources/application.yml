@@ -30,6 +30,10 @@ app:
     secret: ${JWT_SECRET:replace_this_with_a_long_random_base64_secret_before_running}
     access-token-expiry-ms: ${JWT_ACCESS_EXPIRY_MS:900000}
     refresh-token-expiry-ms: ${JWT_REFRESH_EXPIRY_MS:604800000}
+  catalog-service:
+    base-url: ${CATALOG_SERVICE_URL:http://localhost:4000}
+  internal:
+    service-secret: ${INTERNAL_SERVICE_SECRET:replace_this_internal_secret_too}
 
 logging:
   level:

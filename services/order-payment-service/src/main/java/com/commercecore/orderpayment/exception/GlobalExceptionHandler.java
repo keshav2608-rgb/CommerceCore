@@ -30,6 +30,26 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.UNAUTHORIZED, "InvalidRefreshToken", ex.getMessage());
     }
 
+    @ExceptionHandler(EmptyCartException.class)
+    public ResponseEntity<Map<String, Object>> handleEmptyCart(EmptyCartException ex) {
+        return build(HttpStatus.BAD_REQUEST, "EmptyCart", ex.getMessage());
+    }
+
+    @ExceptionHandler(MissingIdempotencyKeyException.class)
+    public ResponseEntity<Map<String, Object>> handleMissingIdempotencyKey(MissingIdempotencyKeyException ex) {
+        return build(HttpStatus.BAD_REQUEST, "MissingIdempotencyKey", ex.getMessage());
+    }
+
+    @ExceptionHandler(OrderNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleOrderNotFound(OrderNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, "OrderNotFound", ex.getMessage());
+    }
+
+    @ExceptionHandler(ForbiddenOrderAccessException.class)
+    public ResponseEntity<Map<String, Object>> handleForbiddenOrderAccess(ForbiddenOrderAccessException ex) {
+        return build(HttpStatus.FORBIDDEN, "Forbidden", ex.getMessage());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldErrors().stream()
