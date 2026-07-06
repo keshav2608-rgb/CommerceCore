@@ -1,0 +1,37 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: order-payment-service
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/commercecore_orders}
+    username: ${SPRING_DATASOURCE_USERNAME:commercecore}
+    password: ${SPRING_DATASOURCE_PASSWORD:change_me_postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      # Flyway owns schema changes — Hibernate must never auto-modify the schema.
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:replace_this_with_a_long_random_base64_secret_before_running}
+    access-token-expiry-ms: ${JWT_ACCESS_EXPIRY_MS:900000}
+    refresh-token-expiry-ms: ${JWT_REFRESH_EXPIRY_MS:604800000}
+
+logging:
+  level:
+    root: INFO
+    com.commercecore: DEBUG

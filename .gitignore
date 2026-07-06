@@ -1,0 +1,31 @@
+# Node
+node_modules/
+dist/
+npm-debug.log*
+.env
+services/catalog-cart-service/.env
+
+# Java / Spring
+target/
+*.class
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/
+!**/src/main/**
+!**/src/test/**
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Docker
+*.pid
+
+# Logs
+logs/
+*.log
+
+# OS
+Thumbs.db

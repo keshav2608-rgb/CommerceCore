@@ -1,0 +1,21 @@
+# Isolated test profile: in-memory H2 instead of the real Postgres container,
+# so `mvn test` works standalone without docker compose running.
+# Flyway is disabled here because the V1 migration uses Postgres-specific
+# types (TIMESTAMPTZ); Hibernate's create-drop is sufficient for these smoke tests.
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=PostgreSQL
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  flyway:
+    enabled: false
+
+app:
+  jwt:
+    secret: test-only-secret-key-not-for-production-use-1234567890
+    access-token-expiry-ms: 900000
+    refresh-token-expiry-ms: 604800000

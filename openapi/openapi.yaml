@@ -1,0 +1,383 @@
+openapi: 3.0.3
+info:
+  title: CommerceCore API
+  description: >
+    Polyglot microservices e-commerce backend — catalog+cart-service (Node/TS)
+    and order+payment-service (Spring Boot), fronted by an NGINX gateway.
+    Month-1 MVP scope (see project roadmap Section 4).
+  version: 0.1.0
+servers:
+  - url: http://localhost:8081
+    description: Local gateway (Docker Compose)
+
+tags:
+  - name: health
+  - name: auth
+  - name: products
+  - name: cart
+  - name: orders
+  - name: payments
+
+paths:
+  # ---------------------------------------------------------------------
+  # Health (Week 1)
+  # ---------------------------------------------------------------------
+  /catalog-health:
+    get:
+      tags: [health]
+      summary: Catalog+cart service liveness/readiness check
+      responses:
+        "200":
+          description: Service and its dependencies (Mongo, Redis) are up
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /order-health:
+    get:
+      tags: [health]
+      summary: Order+payment service liveness/readiness check
+      responses:
+        "200":
+          description: Service and its dependency (Postgres) are up
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  # ---------------------------------------------------------------------
+  # Auth (Week 1, D4)
+  # ---------------------------------------------------------------------
+  /auth/signup:
+    post:
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "409":
+          description: Email already registered
+
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Authenticate and receive access + refresh tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Exchange a valid refresh token for a new access token (rotates refresh token)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: New token pair issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Refresh token invalid or expired
+
+  # ---------------------------------------------------------------------
+  # Products (Week 1, D6) — catalog only, no auth required to browse
+  # ---------------------------------------------------------------------
+  /products:
+    get:
+      tags: [products]
+      summary: List / search / filter products
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Free-text search over name/description (Mongo text index)
+        - name: minPrice
+          in: query
+          schema:
+            type: number
+        - name: maxPrice
+          in: query
+          schema:
+            type: number
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Paginated product list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductListResponse"
+
+  # ---------------------------------------------------------------------
+  # Cart (Week 2 — contract reserved now, implemented D8-9)
+  # ---------------------------------------------------------------------
+  /cart:
+    get:
+      tags: [cart]
+      summary: Get current user's cart (Week 2)
+      responses:
+        "200":
+          description: Current cart contents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+
+  /cart/items:
+    post:
+      tags: [cart]
+      summary: Add an item to cart (Week 2)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CartItemRequest"
+      responses:
+        "200":
+          description: Updated cart
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Cart"
+
+  # ---------------------------------------------------------------------
+  # Orders / Payments (Week 2 — contract reserved now, implemented D10-13)
+  # ---------------------------------------------------------------------
+  /orders:
+    post:
+      tags: [orders]
+      summary: Create an order from the current cart (Week 2)
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "201":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+
+  /orders/{id}/status:
+    get:
+      tags: [orders]
+      summary: Get order status (Week 2)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Order status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderStatus"
+        "403":
+          description: Order does not belong to the requesting user
+
+  /payments/webhook:
+    post:
+      tags: [payments]
+      summary: Mock payment provider webhook (Week 2)
+      responses:
+        "200":
+          description: Webhook processed
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: UP
+        service:
+          type: string
+        dependencies:
+          type: object
+          additionalProperties:
+            type: string
+
+    SignupRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        expiresInMs:
+          type: integer
+
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        stock:
+          type: integer
+        attributes:
+          type: object
+          additionalProperties: true
+
+    ProductListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+
+    CartItemRequest:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+
+    Cart:
+      type: object
+      properties:
+        userId:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CartItemRequest"
+
+    CreateOrderRequest:
+      type: object
+      required: [addressLine1, city, postalCode]
+      properties:
+        addressLine1:
+          type: string
+        city:
+          type: string
+        postalCode:
+          type: string
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, PAID, FAILED]
+        total:
+          type: number
+
+    OrderStatus:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - bearerAuth: []
