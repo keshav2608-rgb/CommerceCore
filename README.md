@@ -110,19 +110,8 @@ mvn spring-boot:run
 mvn test
 ```
 
-## Git workflow
+## 
 
-`main` is always deployable. Create a feature branch per module and use
-conventional commits, e.g.:
-
-```bash
-git init
-git add .
-git commit -m "chore: scaffold monorepo, docker-compose, openapi spec (D1)"
-git checkout -b feat/catalog-cart-health
-git commit -m "feat(catalog-cart-service): mongo+redis health check (D2)"
-git checkout main && git merge feat/catalog-cart-health
-```
 
 ## What's next
 
